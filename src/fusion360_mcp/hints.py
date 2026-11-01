@@ -130,7 +130,8 @@ _RULES: list[tuple[str, str, list[str]]] = [
         [
             "Fusion refused this API for this account — an entitlement gate, "
             "not a parameter problem.",
-            "Do not retry: the identical call will be refused identically.",
+            "Do not retry: the identical call keeps being refused until "
+            "the account's entitlement changes.",
             "Use an approach that does not need this API, or run it under a "
             "Fusion subscription that includes it.",
         ],

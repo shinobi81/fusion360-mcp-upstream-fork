@@ -10,6 +10,22 @@ from fusion360_mcp.mock import _MUTATION_MOCKS, mock_command
 from fusion360_mcp.server import _format_result
 
 
+def _blocks(result):
+    """Content blocks of a _format_result payload, whichever shape it took.
+
+    The function returns a CallToolResult on the error path and a plain list of
+    blocks on the success path, so tests narrow once here instead of asserting
+    on a union type.
+    """
+    return result.content if isinstance(result, types.CallToolResult) else result
+
+
+def _text_of(result, index: int = 0) -> str:
+    block = _blocks(result)[index]
+    assert isinstance(block, types.TextContent)
+    return block.text
+
+
 class TestHintClassification:
     """The hint table maps exception messages to an error_kind + hints."""
 
@@ -24,6 +40,10 @@ class TestHintClassification:
             ("Regeneration failed for feature Extrude7", "REGEN_FAILED"),
             ("Boolean subtract failed — empty result", "BOOLEAN_NO_OP"),
             ("Invalid input: angle must be > 0", "INVALID_INPUT"),
+            (
+                "Editing is not permitted in parametric edit mode",
+                "DESIGN_TYPE_MISMATCH",
+            ),
             ("Unknown command: bogus", "UNKNOWN_COMMAND"),
             ("Operation timeout after 30s", "TIMEOUT"),
             (
@@ -36,6 +56,21 @@ class TestHintClassification:
         kind, hints = classify(msg)
         assert kind == expected_kind, f"'{msg}' classified as {kind}"
         assert hints, f"'{expected_kind}' should ship with at least one hint"
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            # The add-in raises this itself when the undo command is missing.
+            # The right answer is the specific next step it names, not
+            # "do not retry" — this message must not drift into NOT_ENTITLED.
+            "Undo command is not available in the current workspace. "
+            "The design was NOT modified — delete the failed feature instead.",
+            "Some parameters are not available for this strategy",
+        ],
+    )
+    def test_availability_wording_is_not_an_entitlement_refusal(self, msg):
+        """Guards the rule against overshooting: only entitlement stays refused."""
+        assert classify(msg)[0] != "NOT_ENTITLED"
 
     def test_entitlement_refusal_tells_the_agent_not_to_retry(self):
         """A refused API is not a parameter problem: retrying only burns calls.
@@ -146,7 +181,7 @@ class TestFormatResult:
         out = _format_result("extrude", result)
         assert isinstance(out, types.CallToolResult)
         assert out.isError is True
-        text = out.content[0].text
+        text = _text_of(out)
         assert "PROFILE_NOT_CLOSED" in text
         assert "close the loop" in text
         assert "No profiles in sketch" in text
@@ -160,7 +195,7 @@ class TestFormatResult:
         }
         out = _format_result("extrude", result)
         assert isinstance(out, list)
-        text = out[0].text
+        text = _text_of(out)
         assert "**extrude** OK" in text
         assert "body_name: Body1" in text
         assert "height: 3.0" in text
@@ -183,7 +218,7 @@ class TestFormatResult:
             },
         }
         out = _format_result("extrude", result)
-        text = out[0].text
+        text = _text_of(out)
         assert "deltas:" in text
         assert "body_count: 0 → 1" in text
         assert "+1" in text
@@ -196,10 +231,12 @@ class TestFormatResult:
         # First block is text metadata, second is the image.
         kinds = [b.type for b in out]
         assert kinds == ["text", "image"]
-        assert out[1].mimeType == "image/png"
-        assert out[1].data == result["image_base64"]
+        image = out[1]
+        assert isinstance(image, types.ImageContent)
+        assert image.mimeType == "image/png"
+        assert image.data == result["image_base64"]
 
     def test_non_dict_result(self):
         out = _format_result("ping", "pong")
         assert isinstance(out, list)
-        assert "pong" in out[0].text
+        assert "pong" in _text_of(out)
