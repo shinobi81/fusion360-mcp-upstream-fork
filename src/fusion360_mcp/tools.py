@@ -344,7 +344,14 @@ TOOLS: list[dict] = [
     {
         "name": "undo",
         "title": "Undo",
-        "description": "Undo the last operation",
+        "description": (
+            "Step the design back one operation. Parametric designs move the "
+            "timeline marker back one step (synchronous and verified; the "
+            "feature stays in the timeline, suppressed, and returns if you roll "
+            "forward). Direct designs issue Fusion's asynchronous undo command "
+            "and report undone: 'issued', verified: false — confirm with "
+            "get_scene_info. Reports undone: false when there is nothing to undo."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {},

@@ -93,7 +93,7 @@ calls to the main thread. Socket threads submit work items and block on a per-it
 | `rename_body`       | Rename a body (searches root and all components) |
 | `boolean_operation` | Join/cut/intersect two bodies                    |
 | `delete_all`        | Clear the design                                 |
-| `undo`              | Undo last operation                              |
+| `undo`              | Step back one operation; see the note below      |
 
 ### Direct Primitives
 
@@ -258,6 +258,15 @@ onto the sketch plane rather than added to its offset — passing the plane's ow
 `model_start` / `model_end` / `model_points` (model space, cm), plus `ignored_z` and a
 `note` whenever a non-zero `z` was discarded. To move geometry, move the plane:
 `create_sketch(z_offset=...)`.
+
+**`undo` steps the timeline back, and tells you whether it could verify that.** On a
+parametric design it moves the timeline marker back one step, which the API performs
+synchronously: `{undone: true, verified: true, marker_position: n, timeline_count: m}`.
+The feature is **suppressed, not deleted** — `timeline_count` does not drop, and moving
+the marker forward brings it back. `{undone: false, verified: true, reason: ...}` means
+there was nothing left to undo. Direct designs have no timeline, so Fusion's undo command
+is asynchronous and lands only after the call returns: you get `{undone: "issued",
+verified: false}` and must confirm with `get_scene_info` before undoing again.
 
 **Use the deltas to sanity-check without a render.** A `boolean_operation` that reports
 `body_count_delta: 0, mass_g_delta: 0` did nothing — follow up with `check_interference`

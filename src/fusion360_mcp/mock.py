@@ -281,7 +281,16 @@ def _delete_all(_p: dict) -> dict:
 
 
 def _undo(_p: dict) -> dict:
-    return {"undone": True, "design_type": 1}
+    return {
+        "undone": True,
+        "verified": False,
+        "design_type": 1,
+        "note": (
+            "Mock mode has no timeline, so this mirrors the direct-design path: "
+            "the real add-in steps a parametric design's timeline marker back "
+            "and reports verified: true."
+        ),
+    }
 
 
 def _execute_code(p: dict) -> dict:
