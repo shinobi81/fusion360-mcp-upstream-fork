@@ -7,6 +7,13 @@ JSON Schema that the MCP SDK validates before forwarding arguments.
 
 import mcp.types as types
 
+# Sketch curves are planar: Fusion interprets their points in the sketch's own
+# frame, so a z here adds to the plane's offset instead of replacing it.
+_SKETCH_PLANE_Z = (
+    "Ignored: sketch curves lie in the sketch plane. Leave at 0 and use "
+    "create_sketch(z_offset=...) to move the plane itself."
+)
+
 TOOLS: list[dict] = [
     # ── scene / query ────────────────────────────────────────────────
     {
@@ -82,7 +89,11 @@ TOOLS: list[dict] = [
                 "height": {"type": "number", "minimum": 0.001},
                 "origin_x": {"type": "number", "default": 0},
                 "origin_y": {"type": "number", "default": 0},
-                "origin_z": {"type": "number", "default": 0},
+                "origin_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
             },
         },
     },
@@ -97,7 +108,11 @@ TOOLS: list[dict] = [
                 "radius": {"type": "number", "minimum": 0.001},
                 "center_x": {"type": "number", "default": 0},
                 "center_y": {"type": "number", "default": 0},
-                "center_z": {"type": "number", "default": 0},
+                "center_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
             },
         },
     },
@@ -111,10 +126,18 @@ TOOLS: list[dict] = [
             "properties": {
                 "start_x": {"type": "number"},
                 "start_y": {"type": "number"},
-                "start_z": {"type": "number", "default": 0},
+                "start_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
                 "end_x": {"type": "number"},
                 "end_y": {"type": "number"},
-                "end_z": {"type": "number", "default": 0},
+                "end_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
             },
         },
     },
@@ -408,7 +431,11 @@ TOOLS: list[dict] = [
                 },
                 "center_x": {"type": "number", "default": 0},
                 "center_y": {"type": "number", "default": 0},
-                "center_z": {"type": "number", "default": 0},
+                "center_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
             },
         },
     },
@@ -424,10 +451,18 @@ TOOLS: list[dict] = [
             "properties": {
                 "center_x": {"type": "number"},
                 "center_y": {"type": "number"},
-                "center_z": {"type": "number", "default": 0},
+                "center_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
                 "start_x": {"type": "number"},
                 "start_y": {"type": "number"},
-                "start_z": {"type": "number", "default": 0},
+                "start_z": {
+                    "type": "number",
+                    "default": 0,
+                    "description": _SKETCH_PLANE_Z,
+                },
                 "sweep_angle": {
                     "type": "number",
                     "description": "Sweep angle in degrees (positive = CCW)",
@@ -1305,7 +1340,9 @@ TOOLS: list[dict] = [
                         "maxItems": 3,
                     },
                     "minItems": 2,
-                    "description": ("Array of [x,y] or [x,y,z] points"),
+                    "description": (
+                        "Array of [x,y] or [x,y,z] points. " + _SKETCH_PLANE_Z
+                    ),
                 },
                 "degree": {
                     "type": "integer",

@@ -682,6 +682,42 @@ class CommandHandler:
     # Sketch
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _plane_point(x: float, y: float):
+        """A sketch-space point lying **on** the sketch plane.
+
+        ``SketchCurves`` interpret points in the sketch's own coordinate
+        system, so a z supplied by a caller is added to whatever offset the
+        plane already carries: on a sketch created with ``z_offset=-0.65``,
+        drawing with ``center_z=-0.65`` puts the curve at model z=-1.30. Sketch
+        curves are planar, so the normal component is dropped rather than being
+        applied twice.
+        """
+        return adsk.core.Point3D.create(x, y, 0)
+
+    @staticmethod
+    def _model_point(sketch, x: float, y: float):
+        """Where a local ``(x, y)`` point on the sketch plane lands in model space."""
+        origin, x_axis, y_axis, _z_axis = sketch.transform.getAsCoordinateSystem()
+        return [
+            origin.x + x * x_axis.x + y * y_axis.x,
+            origin.y + x * x_axis.y + y * y_axis.y,
+            origin.z + x * x_axis.z + y * y_axis.z,
+        ]
+
+    @staticmethod
+    def _report_dropped_z(result: dict, *z_values: float) -> dict:
+        """Surface any z that was dropped, so the projection is never silent."""
+        dropped = [z for z in z_values if z]
+        if dropped:
+            result["ignored_z"] = dropped[0] if len(dropped) == 1 else dropped
+            result["note"] = (
+                "Sketch curves lie in the sketch plane, so the z component was "
+                "dropped instead of being added to the plane's own offset. "
+                "Use create_sketch(z_offset=...) to move the plane itself."
+            )
+        return result
+
     def create_sketch(self, plane: str = "xy", z_offset: float = None):
         root = self._root()
 
@@ -707,10 +743,18 @@ class CommandHandler:
         origin_z: float = 0,
     ):
         sketch = self._last_sketch()
-        p1 = adsk.core.Point3D.create(origin_x, origin_y, origin_z)
-        p2 = adsk.core.Point3D.create(origin_x + width, origin_y + height, origin_z)
+        p1 = self._plane_point(origin_x, origin_y)
+        p2 = self._plane_point(origin_x + width, origin_y + height)
         sketch.sketchCurves.sketchLines.addTwoPointRectangle(p1, p2)
-        return {"sketch": sketch.name, "width": width, "height": height}
+        return self._report_dropped_z(
+            {
+                "sketch": sketch.name,
+                "width": width,
+                "height": height,
+                "model_origin": self._model_point(sketch, origin_x, origin_y),
+            },
+            origin_z,
+        )
 
     def draw_circle(
         self,
@@ -720,13 +764,17 @@ class CommandHandler:
         center_z: float = 0,
     ):
         sketch = self._last_sketch()
-        c = adsk.core.Point3D.create(center_x, center_y, center_z)
+        c = self._plane_point(center_x, center_y)
         sketch.sketchCurves.sketchCircles.addByCenterRadius(c, radius)
-        return {
-            "sketch": sketch.name,
-            "radius": radius,
-            "center": [center_x, center_y, center_z],
-        }
+        return self._report_dropped_z(
+            {
+                "sketch": sketch.name,
+                "radius": radius,
+                "center": [center_x, center_y, center_z],
+                "model_center": self._model_point(sketch, center_x, center_y),
+            },
+            center_z,
+        )
 
     def draw_line(
         self,
@@ -738,14 +786,20 @@ class CommandHandler:
         end_z: float = 0,
     ):
         sketch = self._last_sketch()
-        sp = adsk.core.Point3D.create(start_x, start_y, start_z)
-        ep = adsk.core.Point3D.create(end_x, end_y, end_z)
+        sp = self._plane_point(start_x, start_y)
+        ep = self._plane_point(end_x, end_y)
         sketch.sketchCurves.sketchLines.addByTwoPoints(sp, ep)
-        return {
-            "sketch": sketch.name,
-            "start": [start_x, start_y, start_z],
-            "end": [end_x, end_y, end_z],
-        }
+        return self._report_dropped_z(
+            {
+                "sketch": sketch.name,
+                "start": [start_x, start_y, start_z],
+                "end": [end_x, end_y, end_z],
+                "model_start": self._model_point(sketch, start_x, start_y),
+                "model_end": self._model_point(sketch, end_x, end_y),
+            },
+            start_z,
+            end_z,
+        )
 
     def draw_arc(
         self,
@@ -758,28 +812,40 @@ class CommandHandler:
         start_z: float = 0,
     ):
         sketch = self._last_sketch()
-        center = adsk.core.Point3D.create(center_x, center_y, center_z)
-        start = adsk.core.Point3D.create(start_x, start_y, start_z)
+        center = self._plane_point(center_x, center_y)
+        start = self._plane_point(start_x, start_y)
         sweep_rad = math.radians(sweep_angle)
         sketch.sketchCurves.sketchArcs.addByCenterStartSweep(center, start, sweep_rad)
-        return {"sketch": sketch.name, "sweep_angle": sweep_angle}
+        return self._report_dropped_z(
+            {
+                "sketch": sketch.name,
+                "sweep_angle": sweep_angle,
+                "model_center": self._model_point(sketch, center_x, center_y),
+            },
+            center_z,
+            start_z,
+        )
 
     def draw_spline(self, spline_type: str, points: list, degree: int = 3):
         sketch = self._last_sketch()
         pts = adsk.core.ObjectCollection.create()
         for p in points:
-            z = p[2] if len(p) > 2 else 0
-            pts.add(adsk.core.Point3D.create(p[0], p[1], z))
+            pts.add(self._plane_point(p[0], p[1]))
 
         if spline_type == "fit_points":
             sketch.sketchCurves.sketchFittedSplines.add(pts)
         else:  # control_points
             sketch.sketchCurves.sketchControlPointSplines.add(pts, degree)
-        return {
-            "sketch": sketch.name,
-            "spline_type": spline_type,
-            "points_count": len(points),
-        }
+        dropped = [p[2] for p in points if len(p) > 2 and p[2]]
+        return self._report_dropped_z(
+            {
+                "sketch": sketch.name,
+                "spline_type": spline_type,
+                "points_count": len(points),
+                "model_points": [self._model_point(sketch, p[0], p[1]) for p in points],
+            },
+            *dropped,
+        )
 
     def create_polygon(
         self,
@@ -798,21 +864,27 @@ class CommandHandler:
             for i in range(sides):
                 angle1 = 2 * math.pi * i / sides
                 angle2 = 2 * math.pi * (i + 1) / sides
-                p1 = adsk.core.Point3D.create(
+                p1 = self._plane_point(
                     center_x + radius * math.cos(angle1),
                     center_y + radius * math.sin(angle1),
-                    center_z,
                 )
-                p2 = adsk.core.Point3D.create(
+                p2 = self._plane_point(
                     center_x + radius * math.cos(angle2),
                     center_y + radius * math.sin(angle2),
-                    center_z,
                 )
                 sketch.sketchCurves.sketchLines.addByTwoPoints(p1, p2)
         finally:
             sketch.isComputeDeferred = previous_deferred
 
-        return {"sketch": sketch.name, "sides": sides, "radius": radius}
+        return self._report_dropped_z(
+            {
+                "sketch": sketch.name,
+                "sides": sides,
+                "radius": radius,
+                "model_center": self._model_point(sketch, center_x, center_y),
+            },
+            center_z,
+        )
 
     def draw_circles(
         self,
