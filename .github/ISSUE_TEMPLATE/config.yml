@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Upstream project (faust-machines/fusion360-mcp-server)
+    url: https://github.com/faust-machines/fusion360-mcp-server
+    about: |
+      Code inherited from upstream lives here too. Upstream has had no merges
+      since 2026-10-06 and the joint fixes are still waiting there as PR #35.
+  - name: Installation and tool reference
+    url: https://github.com/shinobi81/fusion360-mcp-server#readme
+    about: Install command, the 96 tools, units (cm) and error envelopes.

@@ -1,0 +1,86 @@
+name: Bug report
+description: Something in the MCP server or the add-in misbehaves
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two fields decide most bugs here: the Fusion build, and the full tool
+        result. Errors flow back as data (`error_kind`, `hints`, `traceback`) —
+        paste it all.
+
+  - type: input
+    id: fusion-build
+    attributes:
+      label: Fusion 360 build
+      description: |
+        Fusion → Help → About (e.g. 2706.1.17). Behaviour differs across
+        builds.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part is broken?
+      options:
+        - MCP server (Python side)
+        - Fusion add-in (runs inside Fusion)
+        - Install / packaging
+        - Documentation
+    validations:
+      required: true
+
+  - type: input
+    id: tool
+    attributes:
+      label: Tool name
+      description: |
+        If a tool call misbehaved, which one? (e.g. create_sketch, undo)
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version installed
+      description: The tag you installed, e.g. v0.3.1 in the uvx command.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. new_document
+        2. create_sketch(plane="xy", z_offset=-0.65)
+        3. draw_circle(radius=0.3, center_z=-0.65)
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: |
+        Paste the full result. For a failure that is the whole envelope —
+        `ok`, `error_kind`, `error_message`, `hints`, `traceback` — not just
+        the summary.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Add-in log tail (optional)
+      description: |
+        Last lines of `~/fusion360mcp.log` while the problem occurred.
+      render: text
