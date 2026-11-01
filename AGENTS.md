@@ -245,6 +245,15 @@ Known `error_kind` values: `PROFILE_NOT_CLOSED`, `SKETCH_NOT_FOUND`, `BODY_NOT_F
 `SELF_INTERSECTION`, `REGEN_FAILED`, `BOOLEAN_NO_OP`, `INVALID_INPUT`,
 `NO_ACTIVE_DESIGN`, `DESIGN_TYPE_MISMATCH`, `TIMEOUT`, `UNKNOWN_COMMAND`, `UNKNOWN`.
 
+**Sketch draw tools report where the geometry landed, not where you asked.** Fusion reads
+sketch-curve points in the sketch's _own_ frame, so a `z` you pass to `draw_rectangle`,
+`draw_circle`, `draw_line`, `draw_arc`, `draw_spline` or `create_polygon` is projected
+onto the sketch plane rather than added to its offset — passing the plane's own
+`z_offset` again used to double it. The result carries `model_center` / `model_origin` /
+`model_start` / `model_end` / `model_points` (model space, cm), plus `ignored_z` and a
+`note` whenever a non-zero `z` was discarded. To move geometry, move the plane:
+`create_sketch(z_offset=...)`.
+
 **Use the deltas to sanity-check without a render.** A `boolean_operation` that reports
 `body_count_delta: 0, mass_g_delta: 0` did nothing — follow up with `check_interference`
 before retrying. An `extrude` that shifts mass by three orders of magnitude is probably

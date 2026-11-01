@@ -16,8 +16,20 @@ Install from a tag rather than PyPI: the published 0.1.0 pins `mcp>=1.0` with no
 bound and crashes under mcp 2.x (upstream issue #30).
 
 ```bash
-uvx --from 'git+https://github.com/shinobi81/fusion360-mcp-server@v0.3.0' fusion360-mcp-server --mode socket
+uvx --from 'git+https://github.com/shinobi81/fusion360-mcp-server@v0.3.1' fusion360-mcp-server --mode socket
 ```
+
+Changes in 0.3.1:
+
+- **Sketch curves stay in the sketch plane.** Fusion reads `SketchCurves` points in the
+  sketch's own coordinate system, so `draw_rectangle`, `draw_circle`, `draw_line`,
+  `draw_arc`, `draw_spline` and `create_polygon` used to add a caller's `z` on top of
+  the plane's offset: on a sketch created with `z_offset=-0.65`, drawing with `z=-0.65`
+  put the geometry at −1.30 and still reported success. The normal component is now
+  dropped and the tool reports where the geometry actually landed (`ignored_z`, `note`,
+  and the model-space position — `model_center`, `model_origin`, `model_start`/
+  `model_end`, or `model_points`). Use `create_sketch(z_offset=...)` to move the plane
+  itself.
 
 Changes in 0.3.0:
 
@@ -406,7 +418,7 @@ everything is connected.
 
 ```bash
 uv sync --dev       # install deps
-uv run pytest -v    # run tests (363 tests)
+uv run pytest -v    # run tests (409 tests)
 uv run ruff check   # lint
 ```
 

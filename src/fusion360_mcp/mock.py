@@ -151,23 +151,56 @@ def _create_sketch(p: dict) -> dict:
     return {"sketch_name": f"Sketch_mock_{plane}", "plane": plane}
 
 
+def _sketch_plane_fields(z_values: list) -> dict:
+    """Mirror the add-in: a non-zero z is dropped, and saying so is not optional.
+
+    Mock mode has no sketch plane, so the model position is the sketch position
+    with z flattened — the point is that the same keys arrive as from Fusion.
+    """
+    dropped = [z for z in z_values if z]
+    if not dropped:
+        return {}
+    return {
+        "ignored_z": dropped[0] if len(dropped) == 1 else dropped,
+        "note": (
+            "Sketch curves lie in the sketch plane, so the z component was "
+            "dropped instead of being added to the plane's own offset. "
+            "Use create_sketch(z_offset=...) to move the plane itself."
+        ),
+    }
+
+
 def _draw_rectangle(p: dict) -> dict:
+    x, y = p.get("origin_x", 0), p.get("origin_y", 0)
     return {
         "sketch_name": "Sketch_mock_xy",
         "width": p.get("width", 1),
         "height": p.get("height", 1),
+        "model_origin": [x, y, 0.0],
+        **_sketch_plane_fields([p.get("origin_z", 0)]),
     }
 
 
 def _draw_circle(p: dict) -> dict:
-    return {"sketch_name": "Sketch_mock_xy", "radius": p.get("radius", 1)}
+    x, y = p.get("center_x", 0), p.get("center_y", 0)
+    return {
+        "sketch_name": "Sketch_mock_xy",
+        "radius": p.get("radius", 1),
+        "model_center": [x, y, 0.0],
+        **_sketch_plane_fields([p.get("center_z", 0)]),
+    }
 
 
 def _draw_line(p: dict) -> dict:
+    start = [p.get("start_x", 0), p.get("start_y", 0)]
+    end = [p.get("end_x", 1), p.get("end_y", 1)]
     return {
         "sketch_name": "Sketch_mock_xy",
-        "start": [p.get("start_x", 0), p.get("start_y", 0)],
-        "end": [p.get("end_x", 1), p.get("end_y", 1)],
+        "start": start,
+        "end": end,
+        "model_start": [*start, 0.0],
+        "model_end": [*end, 0.0],
+        **_sketch_plane_fields([p.get("start_z", 0), p.get("end_z", 0)]),
     }
 
 
@@ -287,10 +320,13 @@ def _loft(p: dict) -> dict:
 
 
 def _create_polygon(p: dict) -> dict:
+    x, y = p.get("center_x", 0), p.get("center_y", 0)
     return {
         "sketch_name": "Sketch_mock_xy",
         "sides": p.get("sides", 6),
         "radius": p.get("radius", 1),
+        "model_center": [x, y, 0.0],
+        **_sketch_plane_fields([p.get("center_z", 0)]),
     }
 
 
@@ -311,6 +347,8 @@ def _draw_arc(p: dict) -> dict:
         "sketch_name": "Sketch_mock_xy",
         "center": [p.get("center_x", 0), p.get("center_y", 0)],
         "sweep_angle": p.get("sweep_angle", 90),
+        "model_center": [p.get("center_x", 0), p.get("center_y", 0), 0.0],
+        **_sketch_plane_fields([p.get("center_z", 0), p.get("start_z", 0)]),
     }
 
 
@@ -584,10 +622,16 @@ def _create_construction_axis(p: dict) -> dict:
 
 
 def _draw_spline(p: dict) -> dict:
+    points = p.get("points", [])
     return {
         "sketch_name": "Sketch_mock_xy",
         "spline_type": p.get("spline_type", "fit_points"),
-        "point_count": len(p.get("points", [])),
+        "point_count": len(points),
+        "points_count": len(points),
+        "model_points": [[pt[0], pt[1], 0.0] for pt in points],
+        **_sketch_plane_fields([
+            pt[2] for pt in points if len(pt) > 2 and pt[2]
+        ]),
     }
 
 

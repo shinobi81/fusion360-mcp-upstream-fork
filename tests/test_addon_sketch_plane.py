@@ -57,16 +57,23 @@ class FakeVector3D:
 
 
 class FakeTransform:
-    """A sketch transform offset along Z, like an offset construction plane."""
+    """A sketch transform, offset along Z and optionally rotated.
 
-    def __init__(self, offset=0.0):
+    ``axes`` lets a test stand in for a sketch on the yz/xz plane, where the
+    sketch's own x/y are not model x/y — the one case where transposing the
+    axis math in ``_model_point`` would go unnoticed.
+    """
+
+    def __init__(self, offset=0.0, x_axis=(1.0, 0.0, 0.0), y_axis=(0.0, 1.0, 0.0)):
         self.offset = float(offset)
+        self.x_axis = x_axis
+        self.y_axis = y_axis
 
     def getAsCoordinateSystem(self):
         return (
             FakePoint3D(0.0, 0.0, self.offset),
-            FakeVector3D(1.0, 0.0, 0.0),
-            FakeVector3D(0.0, 1.0, 0.0),
+            FakeVector3D(*self.x_axis),
+            FakeVector3D(*self.y_axis),
             FakeVector3D(0.0, 0.0, 1.0),
         )
 
@@ -105,10 +112,10 @@ class FakeSketchCurves:
 
 
 class FakeSketch:
-    def __init__(self, offset=0.0, name="Sketch1"):
+    def __init__(self, offset=0.0, name="Sketch1", transform=None):
         self.name = name
         self.isComputeDeferred = False
-        self.transform = FakeTransform(offset)
+        self.transform = transform if transform is not None else FakeTransform(offset)
         self.calls: list[tuple[str, dict]] = []
         self.sketchCurves = FakeSketchCurves(self.calls)
 
@@ -174,7 +181,12 @@ def _install_fake_adsk():
 
 @pytest.fixture(scope="module")
 def handler_module():
-    """command_handler.py, imported against the fake runtime."""
+    """command_handler.py, imported against the fake runtime.
+
+    The fake ``adsk`` is torn down afterwards: leaving it in ``sys.modules``
+    would hand a fake to any later test that imports an adsk-dependent module
+    instead of failing loudly.
+    """
     if FAKE_PACKAGE in sys.modules:
         return sys.modules[f"{FAKE_PACKAGE}.server.command_handler"]
 
@@ -186,16 +198,21 @@ def handler_module():
     setattr(server, "get_logger", lambda name=None: logging.getLogger("addon-test"))
     sys.modules[FAKE_PACKAGE] = package
     sys.modules[f"{FAKE_PACKAGE}.server"] = server
-    return importlib.import_module(f"{FAKE_PACKAGE}.server.command_handler")
+    yield importlib.import_module(f"{FAKE_PACKAGE}.server.command_handler")
+    for name in ("adsk", "adsk.core", "adsk.fusion", "adsk.cam"):
+        sys.modules.pop(name, None)
 
 
 @pytest.fixture
 def draw(handler_module):
-    """Return ``(sketch, call)``: a fake offset sketch and a bound draw call."""
+    """Return ``(sketch, handler)``: a fake sketch and a bound handler."""
 
-    def factory(offset=-0.65):
+    def factory(offset=-0.65, x_axis=(1.0, 0.0, 0.0), y_axis=(0.0, 1.0, 0.0)):
         handler = handler_module.CommandHandler.__new__(handler_module.CommandHandler)
-        sketch = FakeSketch(offset=offset)
+        sketch = FakeSketch(
+            offset=offset,
+            transform=FakeTransform(offset=offset, x_axis=x_axis, y_axis=y_axis),
+        )
         handler._last_sketch = lambda: sketch
         return sketch, handler
 
@@ -219,6 +236,22 @@ class TestGeometryLandsOnTheSketchPlane:
         # The circle is on the plane, so its model position is the plane's.
         assert result["model_center"][2] == pytest.approx(-0.65)
         assert result["ignored_z"] == -0.65
+        assert "sketch plane" in result["note"]
+
+    def test_model_position_follows_the_sketch_axes(self, draw):
+        """On a yz-plane sketch, sketch x maps to model y and sketch y to model z.
+
+        With identity axes everywhere else in these fakes, a transposed
+        ``x_axis.y``/``y_axis.x`` in the model-position math would pass every
+        other test here.
+        """
+        sketch, handler = draw(
+            offset=0.0, x_axis=(0.0, 1.0, 0.0), y_axis=(0.0, 0.0, 1.0)
+        )
+
+        result = handler.draw_circle(radius=1, center_x=2, center_y=3)
+
+        assert result["model_center"] == pytest.approx([0.0, 2.0, 3.0])
 
     def test_draw_rectangle_drops_a_z_that_duplicates_the_offset(self, draw):
         sketch, handler = draw(offset=-0.65)
@@ -274,6 +307,22 @@ class TestGeometryLandsOnTheSketchPlane:
 
         assert all(call[1]["points"][0].z == 0.0 for call in sketch.calls)
         assert len(sketch.calls) == 4
+
+
+class TestDispatch:
+    def test_execute_command_wraps_the_draw_in_a_success_envelope(self, draw):
+        """The schema -> handler kwarg path and the envelope, end to end."""
+        sketch, handler = draw(offset=-0.65)
+        handler._snapshot = lambda: None  # no design behind this fake
+
+        out = handler.execute_command(
+            {"type": "draw_circle", "params": {"radius": 1, "center_z": -0.65}}
+        )
+
+        assert out["status"] == "success"
+        assert out["result"]["ok"] is True
+        assert out["result"]["ignored_z"] == -0.65
+        assert sketch.last_call("circle")["center"].coords() == (0.0, 0.0, 0.0)
 
 
 class TestNothingChangesWhenZIsOmitted:

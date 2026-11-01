@@ -696,9 +696,20 @@ class CommandHandler:
         return adsk.core.Point3D.create(x, y, 0)
 
     @staticmethod
-    def _model_point(sketch, x: float, y: float):
-        """Where a local ``(x, y)`` point on the sketch plane lands in model space."""
+    def _sketch_frame(sketch):
+        """Origin and in-plane axes of the sketch.
+
+        Read before any curve is added: if reading the transform failed after
+        the mutation landed, the caller would see ``ok: false`` for geometry
+        that was already created.
+        """
         origin, x_axis, y_axis, _z_axis = sketch.transform.getAsCoordinateSystem()
+        return origin, x_axis, y_axis
+
+    @staticmethod
+    def _model_point(frame, x: float, y: float):
+        """Where a local ``(x, y)`` point on the sketch plane lands in model space."""
+        origin, x_axis, y_axis = frame
         return [
             origin.x + x * x_axis.x + y * y_axis.x,
             origin.y + x * x_axis.y + y * y_axis.y,
@@ -743,6 +754,7 @@ class CommandHandler:
         origin_z: float = 0,
     ):
         sketch = self._last_sketch()
+        frame = self._sketch_frame(sketch)
         p1 = self._plane_point(origin_x, origin_y)
         p2 = self._plane_point(origin_x + width, origin_y + height)
         sketch.sketchCurves.sketchLines.addTwoPointRectangle(p1, p2)
@@ -751,7 +763,7 @@ class CommandHandler:
                 "sketch": sketch.name,
                 "width": width,
                 "height": height,
-                "model_origin": self._model_point(sketch, origin_x, origin_y),
+                "model_origin": self._model_point(frame, origin_x, origin_y),
             },
             origin_z,
         )
@@ -764,6 +776,7 @@ class CommandHandler:
         center_z: float = 0,
     ):
         sketch = self._last_sketch()
+        frame = self._sketch_frame(sketch)
         c = self._plane_point(center_x, center_y)
         sketch.sketchCurves.sketchCircles.addByCenterRadius(c, radius)
         return self._report_dropped_z(
@@ -771,7 +784,7 @@ class CommandHandler:
                 "sketch": sketch.name,
                 "radius": radius,
                 "center": [center_x, center_y, center_z],
-                "model_center": self._model_point(sketch, center_x, center_y),
+                "model_center": self._model_point(frame, center_x, center_y),
             },
             center_z,
         )
@@ -786,6 +799,7 @@ class CommandHandler:
         end_z: float = 0,
     ):
         sketch = self._last_sketch()
+        frame = self._sketch_frame(sketch)
         sp = self._plane_point(start_x, start_y)
         ep = self._plane_point(end_x, end_y)
         sketch.sketchCurves.sketchLines.addByTwoPoints(sp, ep)
@@ -794,8 +808,8 @@ class CommandHandler:
                 "sketch": sketch.name,
                 "start": [start_x, start_y, start_z],
                 "end": [end_x, end_y, end_z],
-                "model_start": self._model_point(sketch, start_x, start_y),
-                "model_end": self._model_point(sketch, end_x, end_y),
+                "model_start": self._model_point(frame, start_x, start_y),
+                "model_end": self._model_point(frame, end_x, end_y),
             },
             start_z,
             end_z,
@@ -812,6 +826,7 @@ class CommandHandler:
         start_z: float = 0,
     ):
         sketch = self._last_sketch()
+        frame = self._sketch_frame(sketch)
         center = self._plane_point(center_x, center_y)
         start = self._plane_point(start_x, start_y)
         sweep_rad = math.radians(sweep_angle)
@@ -820,7 +835,7 @@ class CommandHandler:
             {
                 "sketch": sketch.name,
                 "sweep_angle": sweep_angle,
-                "model_center": self._model_point(sketch, center_x, center_y),
+                "model_center": self._model_point(frame, center_x, center_y),
             },
             center_z,
             start_z,
@@ -828,6 +843,7 @@ class CommandHandler:
 
     def draw_spline(self, spline_type: str, points: list, degree: int = 3):
         sketch = self._last_sketch()
+        frame = self._sketch_frame(sketch)
         pts = adsk.core.ObjectCollection.create()
         for p in points:
             pts.add(self._plane_point(p[0], p[1]))
@@ -842,7 +858,9 @@ class CommandHandler:
                 "sketch": sketch.name,
                 "spline_type": spline_type,
                 "points_count": len(points),
-                "model_points": [self._model_point(sketch, p[0], p[1]) for p in points],
+                "model_points": [
+                    self._model_point(frame, p[0], p[1]) for p in points
+                ],
             },
             *dropped,
         )
@@ -856,6 +874,7 @@ class CommandHandler:
         center_z: float = 0,
     ):
         sketch = self._last_sketch()
+        frame = self._sketch_frame(sketch)
         # Draw inscribed polygon. Deferring the solve matters here because Fusion
         # re-solves the whole sketch after every entity insert.
         previous_deferred = sketch.isComputeDeferred
@@ -881,7 +900,7 @@ class CommandHandler:
                 "sketch": sketch.name,
                 "sides": sides,
                 "radius": radius,
-                "model_center": self._model_point(sketch, center_x, center_y),
+                "model_center": self._model_point(frame, center_x, center_y),
             },
             center_z,
         )
@@ -916,7 +935,7 @@ class CommandHandler:
                 cx = center_x + (i * spacing if axis == "x" else 0.0)
                 cy = center_y + (i * spacing if axis == "y" else 0.0)
                 sketch.sketchCurves.sketchCircles.addByCenterRadius(
-                    adsk.core.Point3D.create(cx, cy, 0), radius
+                    self._plane_point(cx, cy), radius
                 )
         finally:
             sketch.isComputeDeferred = previous_deferred
@@ -1195,7 +1214,11 @@ class CommandHandler:
         elif is_z and abs(axis_direction_y) < 0.01:
             axis_entity = root.zConstructionAxis
         else:
-            # Create construction line in sketch
+            # Axis line lives in the **sketch's** frame, like every other sketch
+            # curve, so on an offset sketch an axis_origin_z is absolute in that
+            # frame rather than in model space. Known and unfixed — see
+            # HANDOVER §7. Converting through sketch.modelToSketchSpace and
+            # measuring it in Fusion is the fix, not a silent edit here.
             origin = adsk.core.Point3D.create(
                 axis_origin_x, axis_origin_y, axis_origin_z
             )
