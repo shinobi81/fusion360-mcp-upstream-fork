@@ -158,9 +158,19 @@ class Fusion360Connection:
         )
 
         is_mutation = command_type in _MUTATION_COMMANDS
+        sock = self._sock
+        if sock is None:
+            # A dead connection would otherwise surface as AttributeError.
+            raise FusionError(
+                f"{command_type}: not connected to Fusion 360",
+                hints=[
+                    "Ensure the Fusion360MCP add-in is running: "
+                    "Fusion → Utilities → Add-Ins → Run.",
+                ],
+            )
         try:
-            self._sock.sendall(payload.encode("utf-8"))
-            self._sock.settimeout(timeout)
+            sock.sendall(payload.encode("utf-8"))
+            sock.settimeout(timeout)
             response = self._recv_json()
         except (socket.timeout, OSError, ConnectionError) as exc:
             log.error("Socket error: %s", exc)
@@ -203,9 +213,12 @@ class Fusion360Connection:
 
     def _recv_json(self) -> dict:
         """Read newline-delimited JSON from the socket."""
+        sock = self._sock
+        if sock is None:
+            raise ConnectionError("Connection closed by Fusion 360")
         buf = b""
         while True:
-            chunk = self._sock.recv(_RECV_BUF)
+            chunk = sock.recv(_RECV_BUF)
             if not chunk:
                 raise ConnectionError("Connection closed by Fusion 360")
             buf += chunk
