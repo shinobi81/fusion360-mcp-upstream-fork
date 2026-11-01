@@ -125,6 +125,19 @@ _RULES: list[tuple[str, str, list[str]]] = [
             "edits) require parametric mode.",
         ],
     ),
+    (
+        r"not available since user is restricted|user is restricted"
+        r"|not entitled|entitlement"
+        r"|requires? an? (?:active |paid )?subscription",
+        "NOT_ENTITLED",
+        [
+            "Fusion refused this API for this account — an entitlement gate, "
+            "not a parameter problem.",
+            "Do not retry: the identical call will be refused identically.",
+            "Use an approach that does not need this API, or run it under a "
+            "Fusion subscription that includes it.",
+        ],
+    ),
 ]
 
 

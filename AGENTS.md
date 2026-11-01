@@ -243,7 +243,12 @@ of guessing whether an operation worked:
 
 Known `error_kind` values: `PROFILE_NOT_CLOSED`, `SKETCH_NOT_FOUND`, `BODY_NOT_FOUND`,
 `SELF_INTERSECTION`, `REGEN_FAILED`, `BOOLEAN_NO_OP`, `INVALID_INPUT`,
-`NO_ACTIVE_DESIGN`, `DESIGN_TYPE_MISMATCH`, `TIMEOUT`, `UNKNOWN_COMMAND`, `UNKNOWN`.
+`NO_ACTIVE_DESIGN`, `DESIGN_TYPE_MISMATCH`, `NOT_ENTITLED`, `TIMEOUT`, `UNKNOWN_COMMAND`,
+`UNKNOWN`.
+
+`NOT_ENTITLED` means Fusion refused the API for this account (seen on
+`auto_constrain`: "not available since user is restricted"). It is not a parameter
+problem — do not retry the same call, use an approach that does not need that API.
 
 **Sketch draw tools report where the geometry landed, not where you asked.** Fusion reads
 sketch-curve points in the sketch's _own_ frame, so a `z` you pass to `draw_rectangle`,

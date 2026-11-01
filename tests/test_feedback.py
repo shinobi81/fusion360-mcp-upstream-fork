@@ -26,12 +26,31 @@ class TestHintClassification:
             ("Invalid input: angle must be > 0", "INVALID_INPUT"),
             ("Unknown command: bogus", "UNKNOWN_COMMAND"),
             ("Operation timeout after 30s", "TIMEOUT"),
+            (
+                "3 : AutoConstrain is not available since user is restricted",
+                "NOT_ENTITLED",
+            ),
         ],
     )
     def test_classify_known_messages(self, msg, expected_kind):
         kind, hints = classify(msg)
         assert kind == expected_kind, f"'{msg}' classified as {kind}"
         assert hints, f"'{expected_kind}' should ship with at least one hint"
+
+    def test_entitlement_refusal_tells_the_agent_not_to_retry(self):
+        """A refused API is not a parameter problem: retrying only burns calls.
+
+        Fusion answers auto_constrain with "... is not available since user is
+        restricted" on accounts without the entitlement. Classified as UNKNOWN
+        with no hints, that invites the same call again and again.
+        """
+        kind, hints = classify(
+            "3 : AutoConstrain is not available since user is restricted"
+        )
+        assert kind == "NOT_ENTITLED"
+        joined = " ".join(hints).lower()
+        assert "do not retry" in joined
+        assert "entitlement" in joined
 
     def test_classify_unknown_falls_back(self):
         kind, hints = classify("totally novel failure mode xyz")
