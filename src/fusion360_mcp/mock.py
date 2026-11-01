@@ -629,9 +629,7 @@ def _draw_spline(p: dict) -> dict:
         "point_count": len(points),
         "points_count": len(points),
         "model_points": [[pt[0], pt[1], 0.0] for pt in points],
-        **_sketch_plane_fields([
-            pt[2] for pt in points if len(pt) > 2 and pt[2]
-        ]),
+        **_sketch_plane_fields([pt[2] for pt in points if len(pt) > 2 and pt[2]]),
     }
 
 

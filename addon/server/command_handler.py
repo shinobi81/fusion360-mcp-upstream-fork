@@ -858,9 +858,7 @@ class CommandHandler:
                 "sketch": sketch.name,
                 "spline_type": spline_type,
                 "points_count": len(points),
-                "model_points": [
-                    self._model_point(frame, p[0], p[1]) for p in points
-                ],
+                "model_points": [self._model_point(frame, p[0], p[1]) for p in points],
             },
             *dropped,
         )
