@@ -41,6 +41,17 @@ select = ["E", "F", "I"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+# The add-in imports Fusion's `adsk` runtime, which exists only inside Fusion.
+# No static type checker can resolve it, and each unresolved import cascades into
+# dozens of false attribute/argument errors, so the add-on is excluded from type
+# checking (ruff and the test suite still cover it — see the CI workflow).
+[tool.pyright]
+exclude = ["addon", "build"]
+
+[tool.mypy]
+exclude = ["^addon/", "^build/"]
+ignore_missing_imports = true
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

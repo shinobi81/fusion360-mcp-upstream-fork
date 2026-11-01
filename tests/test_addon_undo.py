@@ -77,6 +77,7 @@ class FakeRoot:
     def __init__(self, design):
         self.bRepBodies = _Counted(design, "bodies")
         self.sketches = _Counted(design, "sketches")
+        self.features = _Counted(design, "features")
 
 
 class FakeDesign:
@@ -86,19 +87,25 @@ class FakeDesign:
         marker=None,
         design_type=PARAMETRIC,
         marker_switches_type=False,
-        timeline_raises=False,
+        timeline_raises=None,
     ):
         self.timeline_count = features
         self.marker = features if marker is None else marker
         self.bodies = 1 if features else 0
         self.sketches = 1 if features else 0
+        self.features = features
         self.designType = design_type
         self.marker_switches_type = marker_switches_type
-        self.timeline_raises = timeline_raises
+        # Direct designs raise on design.timeline in Fusion, so the fake does
+        # too unless a test says otherwise: a more permissive fake hides bugs.
+        self.timeline_raises = (
+            design_type == DIRECT if timeline_raises is None else timeline_raises
+        )
         self._timeline = FakeTimeline(self)
         self.rootComponent = FakeRoot(self)
         self.undo_commands_executed = 0
         self.marker_writes = []
+        self.parentDocument = type("FakeDocument", (), {"name": "fake-design"})()
 
     @property
     def timeline(self):
@@ -274,6 +281,24 @@ class TestParametricUndo:
 
 
 class TestDirectModeFallback:
+    def test_get_scene_info_works_on_a_direct_design(self, rig):
+        """get_scene_info must not explode in direct mode.
+
+        It read ``design.timeline`` behind ``hasattr``, but hasattr only swallows
+        AttributeError and the property raises RuntimeError — so the tool undo's
+        own hint sends agents to was an UNKNOWN error in exactly that mode.
+        """
+        design, handler = rig(
+            FakeDesign(features=0, design_type=DIRECT, timeline_raises=True)
+        )
+        design.productType = "DesignProductType"
+        handler._camera_info = lambda: {}
+
+        result = handler.get_scene_info()
+
+        assert result["timeline_count"] == 0
+        assert result["bodies_count"] == 0
+
     def test_undo_works_when_design_timeline_raises(self, rig):
         """In direct mode ``design.timeline`` raises; undo must not read it.
 

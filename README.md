@@ -284,7 +284,7 @@ everything is connected.
 | `rename_body`       | Rename a body (searches root and all components)    |
 | `boolean_operation` | Join/cut/intersect two bodies                       |
 | `delete_all`        | Clear the design                                    |
-| `undo`              | Undo last operation (with design-type safety guard) |
+| `undo`              | Step back one timeline feature (verified; see note) |
 
 ### Direct Primitives
 
@@ -418,7 +418,7 @@ everything is connected.
 
 ```bash
 uv sync --dev       # install deps
-uv run pytest -v    # run tests (409 tests)
+uv run pytest -v    # run tests (426 tests)
 uv run ruff check   # lint
 ```
 
@@ -431,8 +431,12 @@ uv run ruff check   # lint
   **Mutation commands are never auto-retried** — after a timeout, call `get_scene_info`
   to check whether anything was applied before retrying.
 - Add-in logs to `~/fusion360mcp.log`.
-- The `undo` tool includes a design-type safety guard — it checks before/after and
-  auto-redoes if the undo would switch from parametric to direct mode.
+- `undo` steps a parametric design's **timeline marker** back one feature, which Fusion
+  performs synchronously, so it can report `verified: true` along with the new marker.
+  The feature is suppressed, not deleted — rolling the marker forward restores it, and
+  creating a new feature while rolled back discards the suppressed ones. Direct designs
+  have no timeline: Fusion's own undo is asynchronous and lands after the call, so the
+  tool reports `undone: "issued", verified: false` and asks you to confirm.
 - Tested on Fusion 2705.1.15 (macOS arm64). Tools marked **(2026+)** need a build from
   2026 or later.
 

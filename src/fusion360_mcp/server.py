@@ -133,6 +133,12 @@ def _format_result(
         if k in _SPECIAL_KEYS:
             continue
         lines.append(f"  {k}: {v}")
+    # A successful call can still carry guidance (undo's issued-but-unverified
+    # branch); the error path renders hints, so the success path must too.
+    hints = result.get("hints") or []
+    if hints:
+        lines.append("  hints:")
+        lines.extend(f"    - {h}" for h in hints)
     deltas = result.get("deltas")
     if isinstance(deltas, dict):
         lines.extend(_format_deltas(deltas))
@@ -192,7 +198,7 @@ def main(mode: str, host: str, port: int) -> int:
     async def call_tool(
         name: str,
         arguments: dict,
-    ) -> list[types.ContentBlock]:
+    ) -> list[types.ContentBlock] | types.CallToolResult:
         tool_def = get_tool_by_name(name)
         if not tool_def:
             raise ValueError(f"Unknown tool: {name}")
@@ -205,7 +211,7 @@ def main(mode: str, host: str, port: int) -> int:
             return _fusion_error_result(name, exc)
         except Exception as exc:
             reset_connection()
-            content = [
+            content: list[types.ContentBlock] = [
                 types.TextContent(
                     type="text",
                     text=f"Error ({name}): {exc}\n\n"
@@ -226,19 +232,19 @@ def main(mode: str, host: str, port: int) -> int:
     async def list_resources() -> list[types.Resource]:
         return [
             types.Resource(
-                uri="fusion360://status",
+                uri=types.AnyUrl("fusion360://status"),
                 name="Connection Status",
                 description="Check whether Fusion 360 is reachable",
                 mimeType="application/json",
             ),
             types.Resource(
-                uri="fusion360://design",
+                uri=types.AnyUrl("fusion360://design"),
                 name="Design Tree",
                 description="Full design tree: bodies, sketches, features, components",
                 mimeType="application/json",
             ),
             types.Resource(
-                uri="fusion360://parameters",
+                uri=types.AnyUrl("fusion360://parameters"),
                 name="User Parameters",
                 description="All user-defined parameters in the design",
                 mimeType="application/json",
@@ -246,7 +252,8 @@ def main(mode: str, host: str, port: int) -> int:
         ]
 
     @app.read_resource()
-    async def read_resource(uri: str) -> str:
+    async def read_resource(uri: types.AnyUrl) -> str:
+        uri = str(uri)
         if uri == "fusion360://status":
             try:
                 result = _send(mode, "ping", host=host, port=port)

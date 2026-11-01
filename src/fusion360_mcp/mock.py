@@ -99,7 +99,10 @@ def mock_command(command_type: str, params: dict[str, Any] | None = None) -> dic
     result = handler(params)
     result.setdefault("ok", True)
     if command_type in _MUTATION_MOCKS and "deltas" not in result:
-        result["deltas"] = dict(_MOCK_DELTAS)
+        # undo removes work; the synthetic "body appeared" deltas would read
+        # as a growth and are exactly what an agent must not be told.
+        if command_type != "undo":
+            result["deltas"] = dict(_MOCK_DELTAS)
     result["mode"] = "mock"
     return result
 
@@ -282,14 +285,15 @@ def _delete_all(_p: dict) -> dict:
 
 def _undo(_p: dict) -> dict:
     return {
-        "undone": True,
+        "undone": "issued",
         "verified": False,
-        "design_type": 1,
+        "design_type": "direct",
         "note": (
             "Mock mode has no timeline, so this mirrors the direct-design path: "
             "the real add-in steps a parametric design's timeline marker back "
             "and reports verified: true."
         ),
+        "hints": ["Fusion's undo is asynchronous; confirm with get_scene_info."],
     }
 
 

@@ -128,6 +128,11 @@ class TestMockDeltas:
     def test_mutation_has_deltas(self):
         for cmd in _MUTATION_MOCKS:
             result = mock_command(cmd, {})
+            if cmd == "undo":
+                # undo removes work: the synthetic "body appeared" deltas would
+                # report growth, so it deliberately carries none.
+                assert "deltas" not in result
+                continue
             assert "deltas" in result, f"{cmd} should expose deltas"
             deltas = result["deltas"]
             assert "body_count_delta" in deltas
@@ -240,3 +245,23 @@ class TestFormatResult:
         out = _format_result("ping", "pong")
         assert isinstance(out, list)
         assert "pong" in _text_of(out)
+
+    def test_success_path_renders_hints(self):
+        """Success results can carry hints (undo's issued-but-unverified branch).
+
+        ``hints`` sits in _SPECIAL_KEYS, and the success path skipped every
+        special key, so guidance produced for a *successful* call was dropped in
+        transit — the agent saw ``undone: issued`` with no next step.
+        """
+        out = _format_result(
+            "undo",
+            {
+                "ok": True,
+                "undone": "issued",
+                "verified": False,
+                "hints": ["call get_scene_info to confirm before undoing again"],
+            },
+        )
+
+        text = _text_of(out)
+        assert "get_scene_info" in text

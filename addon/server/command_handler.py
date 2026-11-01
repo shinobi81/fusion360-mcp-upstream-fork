@@ -568,11 +568,23 @@ class CommandHandler:
             "bodies_count": root.bRepBodies.count,
             "sketches_count": root.sketches.count,
             "features_count": root.features.count,
-            "timeline_count": (
-                design.timeline.count if hasattr(design, "timeline") else 0
-            ),
+            "timeline_count": self._timeline_count(design),
             "camera": self._camera_info(),
         }
+
+    @staticmethod
+    def _timeline_count(design) -> int:
+        """Timeline length, or 0 — ``design.timeline`` raises in direct mode.
+
+        ``hasattr`` only swallows AttributeError, and Fusion raises RuntimeError
+        ("3 : this is not a parametric design"), so the property has to be
+        guarded rather than probed.
+        """
+        try:
+            timeline = design.timeline
+        except RuntimeError:
+            return 0
+        return timeline.count if timeline is not None else 0
 
     def get_object_info(self, name: str):
         root = self._root()
@@ -2326,13 +2338,14 @@ class CommandHandler:
         return {
             "undone": False,
             "verified": True,
-            "timeline_count": timeline.count if timeline else 0,
-            "marker_position": timeline.markerPosition if timeline else 0,
-            "reason": "Nothing to undo — the timeline marker is already at "
-            "the start of history.",
+            "timeline_count": timeline.count if timeline is not None else 0,
+            "marker_position": (timeline.markerPosition if timeline is not None else 0),
+            "reason": "No timeline feature to step back — the marker is at the "
+            "start of history, or the timeline is empty.",
             "hints": [
-                "The design was not modified; there is no earlier step to go back to.",
-                "Build or edit a feature instead of undoing.",
+                "Undo only reverts timeline features. Edits that create no "
+                "timeline item (parameter values, appearances, body renames, "
+                "joint values) are not undone by this tool.",
             ],
         }
 
@@ -2346,14 +2359,18 @@ class CommandHandler:
 
         timeline.markerPosition = marker_before - 1
         adsk.doEvents()
+        marker_after = timeline.markerPosition
 
         if design.designType != type_before:
             # Rollback must never change the design type; if it ever does, put
             # both the marker and the type back rather than leave direct mode.
-            timeline.markerPosition = marker_before
+            try:
+                timeline.markerPosition = marker_before
+            except Exception as exc:
+                log.error("Could not restore the timeline marker: %s", exc)
             try:
                 design.designType = type_before
-            except Exception as exc:  # best effort — the raise below is the point
+            except Exception as exc:
                 log.error("Could not restore design type after aborted undo: %s", exc)
             adsk.doEvents()
             parametric = adsk.fusion.DesignTypes.ParametricDesignType
@@ -2362,19 +2379,39 @@ class CommandHandler:
                 f"{marker_before - 1} changed the design type from "
                 f"{'Parametric' if type_before == parametric else 'Direct'} to "
                 f"{'Parametric' if design.designType == parametric else 'Direct'}. "
-                f"The marker was restored. Delete the failed feature explicitly "
-                f"instead."
+                f"The marker was restored. If the design is stuck in direct "
+                f"mode, call set_design_type('parametric') to capture history "
+                f"again, then delete the failed feature explicitly."
             )
+
+        if marker_after == marker_before:
+            # The write did not take — do not report a success nobody can see.
+            return {
+                "undone": False,
+                "verified": True,
+                "marker_before": marker_before,
+                "marker_position": marker_after,
+                "timeline_count": timeline.count,
+                "reason": "Fusion did not move the timeline marker, so nothing "
+                "was undone.",
+                "hints": [
+                    "Retry once; if the marker still does not move, undo in the "
+                    "Fusion UI.",
+                ],
+            }
 
         return {
             "undone": True,
             "verified": True,
+            "marker_before": marker_before,
+            "marker_position": marker_after,
             "timeline_count": timeline.count,
-            "marker_position": timeline.markerPosition,
             "note": (
-                "Timeline stepped back one feature. The feature stays in the "
-                "timeline (suppressed) and returns if the marker is moved "
-                "forward again."
+                "Timeline stepped back one feature; it stays in the timeline "
+                "suppressed rather than being deleted. Rolling the marker "
+                "forward restores it (execute_code: "
+                "design.timeline.markerPosition = N) — but creating a new "
+                "feature while rolled back discards the suppressed ones."
             ),
         }
 
