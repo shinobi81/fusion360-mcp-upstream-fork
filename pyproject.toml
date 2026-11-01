@@ -4,8 +4,8 @@ version = "0.2.2"
 description = "MCP server for Autodesk Fusion 360 — bridges Claude to the Fusion360MCP add-in"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE", "LICENSE-MIT"]
 authors = [{ name = "Faust Machines" }]
 dependencies = [
     "anyio>=4.5",

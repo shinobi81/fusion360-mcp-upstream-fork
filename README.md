@@ -51,6 +51,14 @@ Changes in 0.2.0:
 - `set_joint_value` drives ball and cylindrical joints, and treats slide values as
   centimetres instead of converting them from degrees.
 
+### Licence
+
+The work added in this fork is **AGPL-3.0-or-later**. The code inherited from upstream
+remains **MIT**, and its notice is retained in [LICENSE-MIT](LICENSE-MIT) because that
+grant cannot be withdrawn. Both apply together; [NOTICE](NOTICE) explains which is
+which. Practically: if you run a modified version of this fork as a network service,
+AGPL section 13 requires you to offer the source to its users.
+
 The upstream instructions below apply unchanged.
 
 MCP server that connects AI coding agents to Autodesk Fusion 360 for CAD automation.

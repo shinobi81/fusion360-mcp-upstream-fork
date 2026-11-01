@@ -1,0 +1,40 @@
+Fusion360 MCP Server — licensing of this fork
+=============================================
+
+This repository is a fork of github.com/faust-machines/fusion360-mcp-server,
+taken from upstream commit 19b9f1e.
+
+Upstream code
+-------------
+The upstream project is MIT licensed: Copyright (c) 2025 Faust Network, Inc.
+
+That notice is retained verbatim in LICENSE-MIT. Everything derived from
+upstream — the add-in structure, and the parts of the server that existed at
+the fork point — stays available to anyone who received it under those MIT
+terms. Those grants were made to the public and cannot be withdrawn by this
+fork, or by anyone else.
+
+This fork's additions
+---------------------
+New work added here is licensed under the GNU Affero General Public License
+version 3; the full text is in LICENSE. It covers, among other things:
+
+  - the new_document and draw_circles commands
+  - the socket hardening in addon/server/socket_server.py, and its regression
+    test
+  - the joint fixes and the set_joint_value changes developed in this fork
+  - the documentation, CI, and packaging changes made here
+
+The AGPL's section 13 is the point of choosing it: anyone who runs a modified
+version of this code to provide a service over a network must offer the
+corresponding source to the people using that service.
+
+Where both apply
+----------------
+The repository as a whole is distributed under AGPL-3.0. MIT permits inclusion
+in a GPL or AGPL work as long as the MIT notice is kept, which is why
+LICENSE-MIT ships alongside LICENSE rather than being replaced by it.
+
+If you redistribute this fork, or a work derived from it, carry both notices.
+
+SPDX-License-Identifier: AGPL-3.0-or-later AND MIT
