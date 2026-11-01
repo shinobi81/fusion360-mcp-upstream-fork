@@ -16,8 +16,15 @@ Install from a tag rather than PyPI: the published 0.1.0 pins `mcp>=1.0` with no
 bound and crashes under mcp 2.x (upstream issue #30).
 
 ```bash
-uvx --from 'git+https://github.com/shinobi81/fusion360-mcp-server@v0.2.2' fusion360-mcp-server --mode socket
+uvx --from 'git+https://github.com/shinobi81/fusion360-mcp-server@v0.3.0' fusion360-mcp-server --mode socket
 ```
+
+Changes in 0.3.0:
+
+- **Licence change.** The work added in this fork is now AGPL-3.0-or-later; the code
+  inherited from upstream remains MIT and its notice is kept in `LICENSE-MIT`. See
+  `NOTICE`. Running a modified version as a network service therefore requires offering
+  its source to that service's users. Tags before 0.3.0 are still MIT.
 
 Changes in 0.2.2:
 
